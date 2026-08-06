@@ -610,8 +610,7 @@
       "sticker": "ملصق",
       "poll": "استطلاع",
       "forward": "إعادة توجيه",
-      "bulk": "جماعي",
-      "broadcast": "بودكاست"
+      "bulk": "جماعي"
     },
     "messageContent": "محتوى الرسالة",
     "messagePlaceholder": "أدخل رسالتك هنا...",
@@ -681,7 +680,14 @@
     },
     "broadcastRecipients": "مستلمو البودكاست",
     "broadcastRecipientsPlaceholder": "+201001234567\n+201009876543\n120363xxxxxxxx@g.us",
-    "broadcastRecipientsHint": "رقم هاتف أو Chat ID أو Group ID في كل سطر. استخدم مستلمين موافقين فقط."
+    "broadcastRecipientsHint": "رقم هاتف أو Chat ID أو Group ID في كل سطر. استخدم مستلمين موافقين فقط.",
+    "broadcast": "بودكاست",
+    "broadcastUploadCsv": "رفع CSV للبودكاست",
+    "broadcastUploadCsvHint": "يدعم CSV أعمدة مثل phone أو mobile أو number أو recipient أو whatsapp أو chat_id أو group_id. لو مفيش Header هيستخدم أول عمود.",
+    "broadcastFileSelected": "الملف المختار: {{name}}",
+    "broadcastCsvNoRecipients": "لم يتم العثور على مستلمين صالحين داخل CSV",
+    "broadcastCsvTooLarge": "ملف CSV كبير جدًا. الحد الأقصى 2 MB",
+    "broadcastCsvTooMany": "ملف CSV فيه عدد أكبر من الحد الحالي. تم تحميل أول عدد مسموح فقط."
   },
   "infrastructure": {
     "title": "البنية التحتية",

@@ -41,7 +41,6 @@ const messageTypes = [
   'poll',
   'forward',
   'bulk',
-  'broadcast',
 ] as const;
 
 // The types that share the media upload/URL block (base64 XOR url + mimetype).
@@ -60,7 +59,6 @@ const mediaAccept: Record<(typeof messageTypes)[number], string> = {
   poll: '*/*',
   forward: '*/*',
   bulk: '*/*',
-  broadcast: '*/*',
 };
 
 // Fallback MIME for when the browser leaves File.type empty (some extensions). The backend requires a
@@ -77,7 +75,6 @@ const fallbackMime: Record<(typeof messageTypes)[number], string> = {
   poll: 'application/octet-stream',
   forward: 'application/octet-stream',
   bulk: 'application/octet-stream',
-  broadcast: 'application/octet-stream',
 };
 
 // Client pre-check before base64-encoding an upload. Aligned with the default request-body limit: base64
@@ -85,6 +82,92 @@ const fallbackMime: Record<(typeof messageTypes)[number], string> = {
 // clear 413 instead of the tab OOMing on a multi-hundred-MB pick before the request is even sent. The
 // backend's MEDIA_DOWNLOAD_MAX_BYTES (default 50 MiB) stays authoritative for URL sends (fetched server-side).
 const MEDIA_UPLOAD_MAX_BYTES = 18 * 1024 * 1024;
+
+const BROADCAST_CSV_MAX_BYTES = 2 * 1024 * 1024;
+
+function splitCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = line[i + 1];
+
+    if (ch === '"' && inQuotes && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      cells.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
+
+function normalizeCsvHeader(value: string): string {
+  return value
+    .trim()
+    .replace(/^\ufeff/, '')
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function parseBroadcastCsv(text: string): string[] {
+  const rows = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(splitCsvLine);
+
+  if (rows.length === 0) return [];
+
+  const preferredColumns = new Set([
+    'phone',
+    'mobile',
+    'number',
+    'recipient',
+    'recipients',
+    'whatsapp',
+    'whatsapp_number',
+    'chatid',
+    'chat_id',
+    'jid',
+    'group',
+    'group_id',
+  ]);
+
+  const headers = rows[0].map(normalizeCsvHeader);
+  let recipientIndex = headers.findIndex(header => preferredColumns.has(header));
+  const startRow = recipientIndex >= 0 ? 1 : 0;
+
+  if (recipientIndex < 0) recipientIndex = 0;
+
+  const recipients: string[] = [];
+
+  for (const row of rows.slice(startRow)) {
+    const cell = (row[recipientIndex] || row.find(value => value.trim()) || '').trim();
+    const value = cell.replace(/^"+|"+$/g, '').trim();
+
+    if (value) recipients.push(value);
+  }
+
+  return Array.from(new Set(recipients));
+}
+
 
 // Batch statuses that stop the progress polling (mirrors the backend BatchStatus enum).
 const TERMINAL_BATCH_STATUSES: readonly BatchStatus[] = ['completed', 'cancelled', 'failed'];
@@ -97,7 +180,7 @@ export function MessageTester() {
   const sessions = allSessions.filter(s => s.status === 'ready');
   const [session, setSession] = useState('');
   const [recipient, setRecipient] = useState('');
-  const [recipientType, setRecipientType] = useState<'personal' | 'group'>('personal');
+  const [recipientType, setRecipientType] = useState<'personal' | 'group' | 'broadcast'>('personal');
   const [selectedGroup, setSelectedGroup] = useState('');
   const [messageType, setMessageType] = useState<(typeof messageTypes)[number]>('text');
   const [content, setContent] = useState('');
@@ -135,6 +218,8 @@ export function MessageTester() {
   const [forwardMessageId, setForwardMessageId] = useState('');
   const [bulkRecipients, setBulkRecipients] = useState('');
   const [bulkDelay, setBulkDelay] = useState('');
+  const [broadcastFileName, setBroadcastFileName] = useState('');
+  const broadcastCsvInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | null>(null);
   // Live bulk-batch progress, polled every ~2s while the batch runs (see startBatchPolling).
@@ -239,13 +324,74 @@ export function MessageTester() {
     reader.readAsDataURL(file);
   };
 
+
+  const handleBroadcastCsvChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (file.size > BROADCAST_CSV_MAX_BYTES) {
+      setResponse({
+        success: false,
+        timestamp: new Date().toISOString(),
+        error: t('messageTester.broadcastCsvTooLarge'),
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const recipients = parseBroadcastCsv(text);
+
+      if (recipients.length === 0) {
+        setResponse({
+          success: false,
+          timestamp: new Date().toISOString(),
+          error: t('messageTester.broadcastCsvNoRecipients'),
+        });
+        return;
+      }
+
+      if (recipients.length > BULK_MAX_RECIPIENTS) {
+        setBulkRecipients(recipients.slice(0, BULK_MAX_RECIPIENTS).join('\n'));
+        setBroadcastFileName(`${file.name} — first ${BULK_MAX_RECIPIENTS} only`);
+        setResponse({
+          success: false,
+          timestamp: new Date().toISOString(),
+          error: t('messageTester.broadcastCsvTooMany'),
+        });
+        return;
+      }
+
+      setRecipientType('broadcast');
+      setMessageType('text');
+      setBulkRecipients(recipients.join('\n'));
+      setBroadcastFileName(file.name);
+      setResponse(null);
+    };
+
+    reader.onerror = () => {
+      setResponse({
+        success: false,
+        timestamp: new Date().toISOString(),
+        error: t('messageTester.fileReadError'),
+      });
+    };
+
+    reader.readAsText(file);
+  };
+
   const isMediaMessageType = mediaMessageTypes.includes(messageType);
   const bulkRecipientList = parseBulkRecipients(bulkRecipients);
   const pollOptionsFilled = pollOptions.map(o => o.trim()).filter(o => o.length > 0);
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
   const delayMs = bulkDelay.trim() === '' ? undefined : parseInt(bulkDelay, 10);
-  const isBatchMessage = messageType === 'bulk' || messageType === 'broadcast';
+  const isBroadcastRecipient = recipientType === 'broadcast';
+  const isBatchMessage = isBroadcastRecipient || isBatchMessage;
+  const isBatchMessage = isBroadcastRecipient || isBatchMessage;
 
   // Per-type required-field validation for the newer types; text/media keep their original behavior
   // (the backend stays the authoritative validator either way).
@@ -460,66 +606,118 @@ export function MessageTester() {
           </div>
 
           {/* Bulk carries its own recipient list, so the single-recipient selector is hidden there. */}
-          {!isBatchMessage && (
+
+          <div className="form-group">
+            <label>{t('messageTester.recipientType')}</label>
+            <div className="toggle-group">
+              <button
+                className={recipientType === 'personal' ? 'active' : ''}
+                onClick={() => setRecipientType('personal')}
+              >
+                {t('messageTester.personal')}
+              </button>
+              <button
+                className={recipientType === 'group' ? 'active' : ''}
+                onClick={() => setRecipientType('group')}
+              >
+                {t('messageTester.group')}
+              </button>
+              <button
+                className={recipientType === 'broadcast' ? 'active' : ''}
+                onClick={() => {
+                  setRecipientType('broadcast');
+                  setMessageType('text');
+                }}
+              >
+                {t('messageTester.broadcast')}
+              </button>
+            </div>
+          </div>
+
+          {recipientType !== 'broadcast' && (
+            <div className="form-group">
+              <label>
+                {recipientType === 'group' ? t('messageTester.selectGroup') : t('messageTester.recipientPhone')}
+              </label>
+              {recipientType === 'group' ? (
+                <>
+                  <select
+                    value={selectedGroup}
+                    onChange={e => setSelectedGroup(e.target.value)}
+                    disabled={loadingGroups || groups.length === 0}
+                  >
+                    {loadingGroups && <option value="">{t('messageTester.loadingGroups')}</option>}
+                    {!loadingGroups && groups.length === 0 && (
+                      <option value="">{t('messageTester.noGroupsFound')}</option>
+                    )}
+                    {groups.map(g => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="hint">{t('messageTester.selectGroupHint')}</span>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={recipient}
+                    onChange={e => setRecipient(e.target.value)}
+                    placeholder="+201001234567"
+                  />
+                  <span className="hint">{t('messageTester.phoneHint')}</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {recipientType === 'broadcast' && (
             <>
               <div className="form-group">
-                <label>{t('messageTester.recipientType')}</label>
-                <div className="toggle-group">
-                  <button
-                    className={recipientType === 'personal' ? 'active' : ''}
-                    onClick={() => setRecipientType('personal')}
-                  >
-                    {t('messageTester.personal')}
-                  </button>
-                  <button
-                    className={recipientType === 'group' ? 'active' : ''}
-                    onClick={() => setRecipientType('group')}
-                  >
-                    {t('messageTester.group')}
-                  </button>
-                </div>
+                <label>{t('messageTester.broadcastUploadCsv')}</label>
+                <button type="button" className="browse-btn" onClick={() => broadcastCsvInputRef.current?.click()}>
+                  <Upload size={14} /> {t('messageTester.browse')}
+                </button>
+                <input
+                  ref={broadcastCsvInputRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  accept=".csv,text/csv"
+                  onChange={handleBroadcastCsvChange}
+                />
+                {broadcastFileName && (
+                  <span className="hint">
+                    {t('messageTester.broadcastFileSelected', { name: broadcastFileName })}
+                  </span>
+                )}
+                <span className="hint">{t('messageTester.broadcastUploadCsvHint')}</span>
               </div>
 
               <div className="form-group">
-                <label>
-                  {recipientType === 'group' ? t('messageTester.selectGroup') : t('messageTester.recipientPhone')}
-                </label>
-                {recipientType === 'group' ? (
-                  <>
-                    <select
-                      value={selectedGroup}
-                      onChange={e => setSelectedGroup(e.target.value)}
-                      disabled={loadingGroups || groups.length === 0}
-                    >
-                      {loadingGroups && <option value="">{t('messageTester.loadingGroups')}</option>}
-                      {!loadingGroups && groups.length === 0 && (
-                        <option value="">{t('messageTester.noGroupsFound')}</option>
-                      )}
-                      {groups.map(g => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="hint">{t('messageTester.selectGroupHint')}</span>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      value={recipient}
-                      onChange={e => setRecipient(e.target.value)}
-                      placeholder="+62812345678"
-                    />
-                    <span className="hint">{t('messageTester.phoneHint')}</span>
-                  </>
-                )}
+                <label>{t('messageTester.broadcastRecipients')}</label>
+                <textarea
+                  value={bulkRecipients}
+                  onChange={e => setBulkRecipients(e.target.value)}
+                  placeholder={t('messageTester.broadcastRecipientsPlaceholder')}
+                  rows={4}
+                />
+                <span className="hint">
+                  {t('messageTester.broadcastRecipientsHint')} ·{' '}
+                  {t('messageTester.bulkRecipientsCount', { count: bulkRecipientList.length })}
+                </span>
               </div>
             </>
           )}
 
-          <div className="form-group">
-            <label>{t('messageTester.messageType')}</label>
+
+              </div>
+            </>
+          )}
+
+          {recipientType !== 'broadcast' && (
+            <div className="form-group">
+              <label>{t('messageTester.messageType')}</label>
             <div className="toggle-group toggle-group-wrap">
               {messageTypes.map(type => (
                 <button
@@ -536,7 +734,7 @@ export function MessageTester() {
                 </button>
               ))}
             </div>
-          </div>
+          )}
 
           {messageType === 'text' && (
             <div className="form-group">
@@ -770,15 +968,15 @@ export function MessageTester() {
           {isBatchMessage && (
             <>
               <div className="form-group">
-                <label>{t(messageType === 'broadcast' ? 'messageTester.broadcastRecipients' : 'messageTester.bulkRecipients')}</label>
+                <label>{t('messageTester.bulkRecipients')}</label>
                 <textarea
                   value={bulkRecipients}
                   onChange={e => setBulkRecipients(e.target.value)}
-                  placeholder={t(messageType === 'broadcast' ? 'messageTester.broadcastRecipientsPlaceholder' : 'messageTester.bulkRecipientsPlaceholder')}
+                  placeholder={t('messageTester.bulkRecipientsPlaceholder')}
                   rows={4}
                 />
                 <span className="hint">
-                  {t(messageType === 'broadcast' ? 'messageTester.broadcastRecipientsHint' : 'messageTester.bulkRecipientsHint')} ·{' '}
+                  {t('messageTester.bulkRecipientsHint')} ·{' '}
                   {t('messageTester.bulkRecipientsCount', { count: bulkRecipientList.length })}
                 </span>
               </div>

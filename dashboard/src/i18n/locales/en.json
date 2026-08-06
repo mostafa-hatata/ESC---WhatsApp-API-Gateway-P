@@ -595,8 +595,7 @@
       "sticker": "Sticker",
       "poll": "Poll",
       "forward": "Forward",
-      "bulk": "Bulk",
-      "broadcast": "Broadcast"
+      "bulk": "Bulk"
     },
     "messageContent": "Message Content",
     "messagePlaceholder": "Enter your message here...",
@@ -666,7 +665,14 @@
     },
     "broadcastRecipients": "Broadcast Recipients",
     "broadcastRecipientsPlaceholder": "+201001234567\n+201009876543\n120363xxxxxxxx@g.us",
-    "broadcastRecipientsHint": "One phone number or WhatsApp chat/group ID per line. Use opted-in recipients only."
+    "broadcastRecipientsHint": "One phone number, chat ID, or group ID per line. Use opted-in recipients only.",
+    "broadcast": "Broadcast",
+    "broadcastUploadCsv": "Upload Broadcast CSV",
+    "broadcastUploadCsvHint": "CSV supports columns like phone, mobile, number, recipient, whatsapp, chat_id, group_id. If no header exists, the first column is used.",
+    "broadcastFileSelected": "Selected file: {{name}}",
+    "broadcastCsvNoRecipients": "No valid recipients found in CSV",
+    "broadcastCsvTooLarge": "CSV is too large. Max 2 MB",
+    "broadcastCsvTooMany": "CSV has more recipients than the current max. Only the first allowed recipients were loaded."
   },
   "infrastructure": {
     "title": "Infrastructure",
