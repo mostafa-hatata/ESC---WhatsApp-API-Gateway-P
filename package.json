@@ -76,7 +76,7 @@
     "@nestjs/typeorm": "^11.0.3",
     "@nestjs/websockets": "^11.1.28",
     "@socket.io/redis-adapter": "^8.3.0",
-    "@whiskeysockets/baileys": "7.0.0-rc13",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "adm-zip": "^0.6.0",
     "archiver": "^8.0.0",
     "audio-decode": "^2.2.3",
