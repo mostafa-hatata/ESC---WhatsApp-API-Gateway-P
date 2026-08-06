@@ -678,16 +678,16 @@
       "cancel": "إلغاء الدفعة",
       "cancelling": "جارٍ الإلغاء..."
     },
-    "broadcastRecipients": "مستلمو البودكاست",
+    "broadcast": "Broadcast",
+    "broadcastRecipients": "Broadcast Recipients",
     "broadcastRecipientsPlaceholder": "+201001234567\n+201009876543\n120363xxxxxxxx@g.us",
-    "broadcastRecipientsHint": "رقم هاتف أو Chat ID أو Group ID في كل سطر. استخدم مستلمين موافقين فقط.",
-    "broadcast": "بودكاست",
-    "broadcastUploadCsv": "رفع CSV للبودكاست",
-    "broadcastUploadCsvHint": "يدعم CSV أعمدة مثل phone أو mobile أو number أو recipient أو whatsapp أو chat_id أو group_id. لو مفيش Header هيستخدم أول عمود.",
-    "broadcastFileSelected": "الملف المختار: {{name}}",
-    "broadcastCsvNoRecipients": "لم يتم العثور على مستلمين صالحين داخل CSV",
-    "broadcastCsvTooLarge": "ملف CSV كبير جدًا. الحد الأقصى 2 MB",
-    "broadcastCsvTooMany": "ملف CSV فيه عدد أكبر من الحد الحالي. تم تحميل أول عدد مسموح فقط."
+    "broadcastRecipientsHint": "One phone number, chat ID, or group ID per line. Use opted-in recipients only.",
+    "broadcastUploadCsv": "Upload Broadcast CSV",
+    "broadcastUploadCsvHint": "CSV columns supported: phone, mobile, number, recipient, whatsapp, chat_id, group_id. If no header exists, first column is used.",
+    "broadcastFileSelected": "Selected file: {{name}}",
+    "broadcastCsvNoRecipients": "No valid recipients found in CSV",
+    "broadcastCsvTooLarge": "CSV is too large. Max 2 MB",
+    "broadcastCsvTooMany": "CSV has more recipients than the current max. Only the first allowed recipients were loaded."
   },
   "infrastructure": {
     "title": "البنية التحتية",
