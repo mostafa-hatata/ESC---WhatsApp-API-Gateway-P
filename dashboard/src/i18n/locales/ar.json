@@ -610,7 +610,8 @@
       "sticker": "ملصق",
       "poll": "استطلاع",
       "forward": "إعادة توجيه",
-      "bulk": "جماعي"
+      "bulk": "جماعي",
+      "broadcast": "بودكاست"
     },
     "messageContent": "محتوى الرسالة",
     "messagePlaceholder": "أدخل رسالتك هنا...",
@@ -677,7 +678,10 @@
       "progress": "تم إرسال {{sent}} من {{total}} · {{failed}} فشلت · {{pending}} قيد الانتظار",
       "cancel": "إلغاء الدفعة",
       "cancelling": "جارٍ الإلغاء..."
-    }
+    },
+    "broadcastRecipients": "مستلمو البودكاست",
+    "broadcastRecipientsPlaceholder": "+201001234567\n+201009876543\n120363xxxxxxxx@g.us",
+    "broadcastRecipientsHint": "رقم هاتف أو Chat ID أو Group ID في كل سطر. استخدم مستلمين موافقين فقط."
   },
   "infrastructure": {
     "title": "البنية التحتية",

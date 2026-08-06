@@ -41,6 +41,7 @@ const messageTypes = [
   'poll',
   'forward',
   'bulk',
+  'broadcast',
 ] as const;
 
 // The types that share the media upload/URL block (base64 XOR url + mimetype).
@@ -59,6 +60,7 @@ const mediaAccept: Record<(typeof messageTypes)[number], string> = {
   poll: '*/*',
   forward: '*/*',
   bulk: '*/*',
+  broadcast: '*/*',
 };
 
 // Fallback MIME for when the browser leaves File.type empty (some extensions). The backend requires a
@@ -75,6 +77,7 @@ const fallbackMime: Record<(typeof messageTypes)[number], string> = {
   poll: 'application/octet-stream',
   forward: 'application/octet-stream',
   bulk: 'application/octet-stream',
+  broadcast: 'application/octet-stream',
 };
 
 // Client pre-check before base64-encoding an upload. Aligned with the default request-body limit: base64
@@ -242,6 +245,7 @@ export function MessageTester() {
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
   const delayMs = bulkDelay.trim() === '' ? undefined : parseInt(bulkDelay, 10);
+  const isBatchMessage = messageType === 'bulk' || messageType === 'broadcast';
 
   // Per-type required-field validation for the newer types; text/media keep their original behavior
   // (the backend stays the authoritative validator either way).
@@ -256,7 +260,7 @@ export function MessageTester() {
     formValid = pollQuestion.trim().length > 0 && pollOptionsFilled.length >= 2;
   } else if (messageType === 'forward') {
     formValid = forwardTo.trim().length > 0 && forwardMessageId.trim().length > 0;
-  } else if (messageType === 'bulk') {
+  } else if (isBatchMessage) {
     formValid =
       content.trim().length > 0 &&
       bulkRecipientList.length > 0 &&
@@ -269,11 +273,11 @@ export function MessageTester() {
     isLoading ||
     !session ||
     !formValid ||
-    (messageType !== 'bulk' && (recipientType === 'group' ? !selectedGroup : !recipient));
+    (!isBatchMessage && (recipientType === 'group' ? !selectedGroup : !recipient));
 
   const handleSend = async () => {
     const targetId = recipientType === 'group' ? selectedGroup : recipient;
-    if (!session || (messageType !== 'bulk' && !targetId)) return;
+    if (!session || (!isBatchMessage && !targetId)) return;
     setIsLoading(true);
     setResponse(null);
     // An earlier batch keeps running server-side, but its polling must not overwrite this response.
@@ -286,7 +290,7 @@ export function MessageTester() {
       // than hand-building an engine-specific JID here (#265) — also surfaces unregistered numbers.
       // Bulk carries its own recipient list, so the shared selector's target is not resolved there.
       let chatId = targetId;
-      if (messageType !== 'bulk' && recipientType !== 'group') {
+      if (!isBatchMessage && recipientType !== 'group') {
         const resolved = await contactApi.checkNumber(session, targetId.replace(/[^0-9]/g, ''));
         if (!resolved.exists || !resolved.whatsappId) {
           setResponse({
@@ -300,7 +304,7 @@ export function MessageTester() {
       }
 
       // Bulk is a batch, not a single send: 202 + batchId, then poll progress until terminal.
-      if (messageType === 'bulk') {
+      if (isBatchMessage) {
         const batch = await messageApi.sendBulk(session, {
           messages: bulkRecipientList.map(recipientChatId => ({
             chatId: recipientChatId,
@@ -456,7 +460,7 @@ export function MessageTester() {
           </div>
 
           {/* Bulk carries its own recipient list, so the single-recipient selector is hidden there. */}
-          {messageType !== 'bulk' && (
+          {!isBatchMessage && (
             <>
               <div className="form-group">
                 <label>{t('messageTester.recipientType')}</label>
@@ -763,18 +767,18 @@ export function MessageTester() {
             </>
           )}
 
-          {messageType === 'bulk' && (
+          {isBatchMessage && (
             <>
               <div className="form-group">
-                <label>{t('messageTester.bulkRecipients')}</label>
+                <label>{t(messageType === 'broadcast' ? 'messageTester.broadcastRecipients' : 'messageTester.bulkRecipients')}</label>
                 <textarea
                   value={bulkRecipients}
                   onChange={e => setBulkRecipients(e.target.value)}
-                  placeholder={t('messageTester.bulkRecipientsPlaceholder')}
+                  placeholder={t(messageType === 'broadcast' ? 'messageTester.broadcastRecipientsPlaceholder' : 'messageTester.bulkRecipientsPlaceholder')}
                   rows={4}
                 />
                 <span className="hint">
-                  {t('messageTester.bulkRecipientsHint')} ·{' '}
+                  {t(messageType === 'broadcast' ? 'messageTester.broadcastRecipientsHint' : 'messageTester.bulkRecipientsHint')} ·{' '}
                   {t('messageTester.bulkRecipientsCount', { count: bulkRecipientList.length })}
                 </span>
               </div>

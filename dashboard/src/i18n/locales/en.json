@@ -595,7 +595,8 @@
       "sticker": "Sticker",
       "poll": "Poll",
       "forward": "Forward",
-      "bulk": "Bulk"
+      "bulk": "Bulk",
+      "broadcast": "Broadcast"
     },
     "messageContent": "Message Content",
     "messagePlaceholder": "Enter your message here...",
@@ -662,7 +663,10 @@
       "progress": "Sent {{sent}} of {{total}} · {{failed}} failed · {{pending}} pending",
       "cancel": "Cancel Batch",
       "cancelling": "Cancelling..."
-    }
+    },
+    "broadcastRecipients": "Broadcast Recipients",
+    "broadcastRecipientsPlaceholder": "+201001234567\n+201009876543\n120363xxxxxxxx@g.us",
+    "broadcastRecipientsHint": "One phone number or WhatsApp chat/group ID per line. Use opted-in recipients only."
   },
   "infrastructure": {
     "title": "Infrastructure",
