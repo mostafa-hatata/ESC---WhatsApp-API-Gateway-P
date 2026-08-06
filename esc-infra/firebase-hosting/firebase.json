@@ -1,0 +1,20 @@
+{
+  "hosting": {
+    "site": "esc-whatsapp-gateway",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "esc-whatsapp-gateway",
+          "region": "us-central1"
+        }
+      }
+    ]
+  }
+}
